@@ -1,0 +1,271 @@
+---
+title: "Data Project I"
+author: 
+date: "Assignment due by 11:59PM on Sunday, Oct 31, 2021"
+output:
+  html_document: null
+  pdf_document: default
+  theme: simplex
+  toc: no
+---
+
+# Getting started  
+In this data project, you will use R Studio to import and calculate summary statics of street trees data from New York City street tree census and NYC demographics data from the American Community Survey. You will also generate graphs using the `ggplot2` package.
+
+Street tree data from the TreesCount 2015 Street Tree Census is conducted by volunteers and staff organized by NYC Parks & Recreation and partner organizations. Tree data collected includes tree species, diameter, and perception of health. 
+
+The American Community Survey (ACS) is a demographics survey program conducted by the U.S. Census Bureau. It regularly gathers information on households' ancestry, citizenship, educational attainment, income, language proficiency, migration, disability, employment, and housing characteristics. In this project, we use a subsample of data from ACS 5-year estimates of 2014-2018.
+
+Download the data from Canvas under the Data Project Module and save them on your computer. 
+
+Before you start, load the package `tidyverse` to your working space and set your working dictionary
+
+```{r message=FALSE}
+library(tidyverse)
+# this is my working directory, you need to modify it. My data is saved in folder "data" under this working directory
+setwd("D:/CSUF classes/Econ534/Assignments/Data Project 1")
+
+```
+
+# Problem 1: Import the data
+
+Import the street tree data and American Community Survey data using the `read_csv` function from the `tidyverse` package. Modify the following code chunk to import data. To help you get started, the code for the street tree in the Bronx has been completed. Look at the options in `?read_csv` for an explanation of this function. 
+
+```{r message=FALSE, warning=TRUE, include=FALSE}
+tree_Bronx <- read_csv("D:/CSUF classes/Econ534/Assignments/Data Project 1/2015_street_tree_Bronx.csv")
+tree_Brooklyn <- read_csv("D:/CSUF classes/Econ534/Assignments/Data Project 1/2015_street_tree_Brooklyn.csv")
+tree_Manhattan <- read_csv("D:/CSUF classes/Econ534/Assignments/Data Project 1/2015_street_tree_Manhattan.csv")
+tree_Queens <- read_csv("D:/CSUF classes/Econ534/Assignments/Data Project 1/2015_street_tree_Queens.csv")
+tree_StatenIsland <- read_csv("D:/CSUF classes/Econ534/Assignments/Data Project 1/2015_street_tree_StatenIsland.csv")
+ACS <- read_csv("D:/CSUF classes/Econ534/Assignments/Data Project 1/ASC2018.csv")
+```
+
+# Problem 2: Append the data frames
+Using the `bind_rows` command from the `dplyr` package, combine the street tree data from five different boroughs into a single data frame, called `trees`. 
+
+After carefully reading the data dictionary `StreetTreeCensus2015DataDictionary`, you figure out the information you need from the dataset. Limit this data frame to only include the following variables: `tree_id,tree_dbh,status, spc_common,boroname,boro_ct`. Use the pipe operator `%>%` to perform the sequence of `dplyr` commands to create this data frame.
+
+Finally, erase from the R working environment the five borough-specific data frames used to create the `trees` data frame.
+
+
+```{r}
+# Combined street tree data and select required variables 
+library(dplyr)
+trees_df <- bind_rows(tree_Bronx,
+                      tree_Brooklyn,
+                      tree_Manhattan,
+                      tree_Queens,
+                      tree_StatenIsland) %>%
+            select(tree_id,
+                   tree_dbh,
+                   status,
+                   spc_common,
+                   boroname,
+                   boro_ct)
+# Delete component files
+rm(tree_Bronx,
+   tree_Brooklyn,
+   tree_Manhattan,
+   tree_Queens,
+   tree_StatenIsland)
+
+
+```
+
+
+# Problem 3: Flag and remove duplicated tree ID
+
+Take a look at the `trees` data frame. It has multiple entries for some treeIDs. 
+
+Add a new variable to `trees` that flags duplicate records. Name this new variable `duplicated`. The variable should take a value of `FALSE` for the record in which a tree ID is observed the first time. The variable should take a value of `TRUE` for records in which the tree ID is observed the more than one time. 
+
+**Hint:** You may want to use the `dplyr` functions `arrange`, `mutate`, and `duplicated`.
+
+```{r message=FALSE, warning=FALSE}
+# Arrange observations in order of treeId
+trees_df <- arrange(trees_df, tree_id)            # Arranging by ID#
+
+# The first occurrence of tree_id will have a duplicated value of FALSE, and all others will have values of TRUE
+duplicated <- (duplicated(trees_df$tree_id))      #checks for duplicates
+which(duplicated(trees_df$tree_id))               #Flags where duplicates occur
+table(duplicated)                                 # Print table with duplicate count
+
+
+# remove duplicates and answer the question below
+trees_df <- trees_df[!duplicated(trees_df),]
+```
+Question: How many duplicated rows did you remove?
+202 duplicates have been removed.
+
+# Problem 4: Flag dead trees, check if a census tract has at any dead tree, and calculate how many ct has dead trees
+We would like to check the tree status in each census tract. 
+
+Create a variable that equals 1 if a census tract has at least one dead tree. Follow these steps:
+
+1. Create a variable named `Dead` that equals 1 if the tree status is "dead" or "stump". Use the command `mutate()` that you learned in class. 
+2. Crete a variable by loan named `Dead_byct` that equals 1 if a census tract has at least one dead tree. Use the commands `mutate()` and `group_by`.
+3. After using `group_by`, you need to ungroup the data frame. To do this, run the code `trees <- ungroup(trees)`.
+
+Check how many census tracts have dead trees:
+
+1. create a new data frame by selecting only rows with unique/distinct census tracts from the `trees` data frame (use the command `distinct()`). Save the new data frame as `trees_ct`, 
+2. Use `table()` to see how many census tracts have dead trees
+
+```{r}
+# create variable dead to check the status of tree, covert (dead or stump) to return value  to 1. Creat a new variable and name it Dead_byc, covert it from list to numeric value, count and print table to console.
+
+Dead <- trees_df %>%
+  mutate(status = replace(status, status == "Dead", 1)) %>%  
+  mutate(status = replace(status, status == "Stump", 1))
+
+
+# create variable Dead_byc from Dead and select and filter only trees that are dead or stumps
+Dead_byc <-Dead %>%
+  select(status) %>% 
+  filter(status != "Alive")
+
+#set Dead_by structure to numeric and sum to calculate total
+Dead_byc$status <- as.numeric(Dead_byc$status)  
+  sum(Dead_byc)
+
+#print a table Dead_byc
+table(Dead_byc)
+
+# print a statement that tells how many total dead trees are in a survey.
+cat("There are ", sum(Dead_byc), "dead trees.")
+
+
+
+```
+
+# Problem 5: Summary statistics
+Build a table of summary statistics for the data
+
+Calculate the following summary statistics in each borough. Save the results in a data frame named `trees_summary`.
+
+1. Number of trees in each borough
+2. Average tree size (measured by variable `tree_dbh`) in each borough
+3. Dead tree ratio in each borough. ( ratio =number of dead trees /total number of trees ). A tree is considered dead if the status is dead or stump (use the `Dead` variable created in program 4).
+
+Also, answer the following questions based on the summary statistics:
+
+1. Which borough has the highest number of trees?
+2. Which borough has the largest average tree size?
+3. Which borough has the highest dead tree ratio?
+
+```{r}
+tree_summary <-trees_df %>% 
+  group_by(boroname)
+
+tree_summary %>% 
+summarise(num_trees = length(tree_id),
+          ave_trees = mean(tree_dbh),
+  #        dead_tree_ratio = length(status[status == "Dead" | "Stump"])
+          )
+
+head(tree_summary)
+
+```
+
+
+
+# Problem 6: Histogram
+Using `ggplot`, create a histogram of tree size.Tree size is measured using variable `tree_dbh`. Use a bin width of 5 for the histogram. Use "firebrick" as the bar fill color, and "white" as the bar border color. Set the background color of the plot area to be white, with grey gridlines (hint: here are some `ggplot2` [theme examples](https://www.r-bloggers.com/ggplot2-themes-examples/), with documentation [here](http://ggplot2.tidyverse.org/reference/ggtheme.html). 
+
+```{r}
+# histogram
+library(ggplot2)
+tree_graph_histogram <- trees_df %>% 
+  ggplot(aes(tree_dbh))+
+  geom_histogram(binwidth = 5, fill = "firebrick")+
+  labs(x = "Tree Size", y = NULL, title = "Histagram of Tree Sizes") +
+  theme_bw()
+  
+# theme(panel.background = "white"),      #this does not work!!!!!!!!!
+ #       panel.grid.major = "gray")
+
+tree_graph_histogram
+```
+
+Histograms are useful to see the distribution of a unique variable. Notice the range and concentration of tree size. You can observe some extreme values in tree size.
+
+Use `filter()` to remove trees with diameter at breast height of tree greater than 20 from the sample and remake the histogram.  Add a title to the graph. Label the x-axis and y-axis properly.
+
+
+```{r}
+# remake the histogram after removing trees with diameter at breast height of tree greater than 20 inches
+
+tree_graph_histogram +
+  filter(tree_dbh < 20)
+
+```
+
+
+# Problem 7: Bar graph
+Using `ggplot`, create a bar graph showing the number of alive tress by borough in NYC. Add proper title and labels.
+
+**Hint:** You may want to use the functions `filter`,`group_by`, `summarise`, and `ggplot`.
+
+```{r}
+# bar graph
+tree_graph_barplot <- trees_df
+as.factor(tree_graph_barplot$status)
+ 
+
+ tree_graph_barplot %>%
+   filter(status =="Alive") %>% 
+   group_by(boroname,) %>% 
+  ggplot(aes(boroname, status))+
+  geom_bar(aes(x = boroname,y = status))
+
+tree_graph_barplot
+
+```
+
+# Problem 8: Join the datasets
+
+One of our goal is to analyze the distribution of trees in relation to some of census tract characteristics, such as income. First, we calculate the number of trees in each census tract and save this information in a new data frame `trees_ct` 
+```{r}
+# create a new data frame with required information
+#trees_ct=trees %>% 
+#  group_by(boro_ct) %>% 
+#  summarise(trees_count=n())
+```
+
+The next step is to join the street tree data frame `trees_ct` and American Community Survey data using the `left_join()` command from the `dplyr` package. Name the resulting joined data frame `tree_acs`. The common field is `boro_ct`.
+`poverty`: percentage of population below the poverty line
+`boro_ct`: census tract ID
+`p.white`: percentage of population: White
+`p.black`: percentage of population: Black
+`p.hispanic`: percentage of population: Hispanic
+`p.asian`: percentage of population: Asian
+`ba.grad`: percentage of the population with bachelor degree and above
+`highschool`: percentage of the population with a high school degree
+`lessthan9years`: percentage of the population with less than 9 years of education
+
+```{r}
+# use left_join
+
+```
+
+Finally, remove NAs from all columns. Hint: You may use `complete.cases()` function.
+
+
+```{r}
+#remove NAs from all columns in `tree_acs` dataframe
+
+```
+
+
+# Problem 9: Scatter plot + trendline
+Using `ggplot`, create a scatter plot of the number of trees by poverty level at the census tract level. Also, estimate a linear trendline, and add this to the map. Edit the elements of your plot (e.g., colors, title, labels, etc.) so that it looks like the figure below (or figure `Problem 9_figure` available on Canvas).
+
+![Problem 9_figure](data/Problem 9 _figure.png)
+
+
+```{r}
+
+
+```
+
+
